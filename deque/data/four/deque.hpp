@@ -12,7 +12,7 @@ namespace sjtu {
 template<class T>
 class deque {
 private:
-	const static int BlockSize = 300;
+//	const static int BlockSize = 1000;
 	struct BNode;
 	struct ANode {
 		T * pvalue;
@@ -90,7 +90,7 @@ private:
 			anode->bnode = nb;
 	}
 	void adjust( BNode *bnode ) {
-		int BlockSize = max( sqrtf(total_size) * 0.7, 16 );
+		int BlockSize = max( sqrtf(total_size) * 0.8, 150 );
 		if( bnode->length < (BlockSize>>1) ) {
 			bool ileft = bnode == start->bnode;
 			bool iright = bnode == finish->bnode;
@@ -184,6 +184,19 @@ private:
 			return 0;
 		}
 	}
+	static int rank( const ANode *nd ) {
+		int cnt = 0;
+		while( nd->prev ) {
+			cnt++;
+			nd = nd->prev;
+		}
+		BNode *bcur = nd->bnode;
+		while( bcur->prev ) {
+			cnt += bcur->prev->length;
+			bcur = bcur->prev;
+		}
+		return cnt;
+	}
 public:	/* For Debug */
 	void print() {
 		for( BNode *bnode = start->bnode; bnode; bnode = bnode->next ) {
@@ -261,7 +274,7 @@ public:
 				acur = acur->prev;
 			}
 			if( n == 0 ) return iterator(acur);
-			BNode *bcur = acur->bnode->prev;;
+			BNode *bcur = acur->bnode->prev;
 			if( bcur == 0 ) throw runtime_error();
 			while( n > bcur->length && bcur->prev ) {
 				n -= bcur->length;
@@ -281,25 +294,12 @@ public:
 		}
 		// return th distance between two iterator,
 		// if these two iterators points to different vectors, throw invaild_iterator.
-		pair<BNode*,int> rank( ANode *nd ) const {
-			int cnt = 0;
-			while( nd->prev ) {
-				cnt++;
-				nd = nd->prev;
-			}
-			BNode *bcur = nd->bnode;
-			while( bcur->prev ) {
-				cnt += bcur->prev->length;
-				bcur = bcur->prev;
-			}
-			return pair<BNode*,int>( bcur, cnt );
-		}
 		int operator-(const iterator &rhs) const {
 			//TODO
-			pair<BNode*,int> arank = rank(anode);
-			pair<BNode*,int> brank = rank(rhs.anode);
-			if( arank.first != brank.first ) throw invalid_iterator();
-			return arank.second - brank.second;
+			if( this->anode->ident != rhs.anode->ident ) throw invalid_iterator();
+			int arank = rank(anode);
+			int brank = rank(rhs.anode);
+			return arank - brank;
 		}
 		iterator operator+=(const int &n) {
 			//TODO
@@ -409,8 +409,8 @@ public:
 				n--;
 				acur = acur->next;
 			}
-			if( n == 0 ) return iterator(acur);
-			BNode *bcur = acur->bnode;
+			if( n == 0 ) return const_iterator(acur);
+			BNode *bcur = acur->bnode->next;
 			while( n > bcur->length && bcur->next ) {
 				n -= bcur->length;
 				bcur = bcur->next;
@@ -422,7 +422,7 @@ public:
 					n--;
 					acur = acur->next;
 				}
-				return iterator(acur);
+				return const_iterator(acur);
 			} else {
 				throw runtime_error();
 			}
@@ -437,7 +437,7 @@ public:
 				acur = acur->prev;
 			}
 			if( n == 0 ) return iterator(acur);
-			BNode *bcur = bcur->bnode;
+			BNode *bcur = acur->bnode->prev;
 			while( n > bcur->length && bcur->prev ) {
 				n -= bcur->length;
 				bcur = bcur->prev;
@@ -456,25 +456,12 @@ public:
 		}
 		// return th distance between two iterator,
 		// if these two iterators points to different vectors, throw invaild_iterator.
-		pair<BNode*,int> rank( ANode *nd ) {
-			int cnt = 0;
-			while( nd->prev ) {
-				cnt++;
-				nd = nd->prev;
-			}
-			BNode *bcur = nd->bnode;
-			while( bcur->prev ) {
-				cnt += bcur->prev->length;
-				bcur = bcur->prev;
-			}
-			return pair<BNode*,int>( bcur, cnt );
-		}
 		int operator-(const const_iterator &rhs) const {
 			//TODO
-			pair<BNode*,int> arank = rank(anode);
-			pair<BNode*,int> brank = rank(rhs->anode);
-			if( arank.first != brank.first ) throw invalid_iterator();
-			return arank.second - brank.second;
+			if( this->anode->ident != rhs.anode->ident ) throw invalid_iterator();
+			int arank = rank(anode);
+			int brank = rank(rhs.anode);
+			return arank - brank;
 		}
 		const_iterator operator+=(const int &n) {
 			//TODO

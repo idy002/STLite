@@ -59,7 +59,7 @@ void TestMatrix()
 
 void TestBint()
 {
-	std::cout << "Test 3 : Test for big integer..." << std::endl;
+	std::cout << "Test 3 : Test for big integer...";
 	sjtu::deque<Util::Bint> dBint;
 	std::vector<Util::Bint> vBint;
 	for (long long i = 1LL << 50; i < (1LL << 50) + N; ++i) {
@@ -154,8 +154,12 @@ void TestInsertAndErase()
 	vInt.erase(vInt.begin() + 2333);
 	dInt.erase(dInt.begin() + 2333);
 	for (long long i = 0; i < N; ++i) {
-		if (!(*(dInt.begin() + i) == vInt[i]))
+		if (!(*(dInt.begin() + i) == vInt[i])) {
+			std::cout << std::endl;
+			std::cout << "my " << (*(dInt.begin()+i)) << std::endl;
+			std::cout << "he " << vInt[i] << std::endl;
 			error();
+		}
 	}
 	std::cout << "Correct." << std::endl;
 }
@@ -200,9 +204,9 @@ void TestPopAndPush()
 
 int main()
 {
-//	TestInteger();
-//	TestMatrix();
-//	TestBint();
+	TestInteger();
+	TestMatrix();
+	TestBint();
 	TestCopyConstructorAndOperatorEqu();
 	TestIteratorSequenceAccess();
 	TestIteratorRandomAccess();

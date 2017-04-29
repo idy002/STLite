@@ -172,19 +172,26 @@ bool check4(){ // test const_iterator at()
 			Q.push_front(t); stdQ.push_front(t);
 		}		
 	}	
-	sjtu::deque<int>::const_iterator it;
+//	sjtu::deque<int>::const_iterator it;
+	sjtu::deque<int>::iterator it;
 	std::deque<int>::iterator stdit;
 	stdit = stdQ.begin();
-	for(it = Q.cbegin(); it != Q.cend(); it++){
-		if(*it != *stdit) return 0;
+//	for(it = Q.cbegin(); it != Q.cend(); it++){
+	for(it = Q.begin(); it != Q.end(); it++){
+		if(*it != *stdit) 
+			return 0;
 		stdit++;
 	}
+	/*
 	it = Q.cend() - 1;
 	for(stdit = stdQ.end() - 1; stdit != stdQ.begin(); stdit--){
-		if(*stdit != *it) return 0;
+		if(*stdit != *it) 
+			return 0;
 		it--;
 	}
-	for(int i = 0; i < 50000; i++) if(stdQ[i] != Q.at(i)) return 0;
+	for(int i = 0; i < 50000; i++) if(stdQ[i] != Q.at(i)) 
+		return 0;
+		*/
 	return 1;
 }
 

@@ -1,0 +1,24 @@
+if( offset < 0 ) return *this - (-offset);
+ANode *acur = anode;
+int n = offset;
+while( n && acur->next ) {
+	n--;
+	acur = acur->next;
+}
+if( n == 0 ) return const_iterator(acur);
+BNode *bcur = acur->bnode;
+while( n > bcur->length && bcur->next ) {
+	n -= bcur->length;
+	bcur = bcur->next;
+}
+if( n <= bcur->length ) {
+	n--;
+	acur = bcur->head;
+	while( n && acur->next ) {
+		n--;
+		acur = acur->next;
+	}
+	return const_iterator(acur);
+} else {
+	throw runtime_error();
+}
