@@ -11,7 +11,7 @@ namespace sjtu {
 template<class T>
 class deque {
 private:
-	const static int BlockSize = 1000;
+//	const static int BlockSize = 1000;
 	struct BNode;
 	struct ANode {
 		T * pvalue;
@@ -89,7 +89,7 @@ private:
 			anode->bnode = nb;
 	}
 	void adjust( BNode *bnode ) {
-		int BlockSize = max( sqrtf(total_size) * 0.7, 16 );
+		int BlockSize = max( sqrtf(total_size) * 0.8, 150 );
 		if( bnode->length < (BlockSize>>1) ) {
 			bool ileft = bnode == start->bnode;
 			bool iright = bnode == finish->bnode;

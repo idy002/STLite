@@ -11,10 +11,11 @@ namespace sjtu {
 template<class T>
 class deque {
 private:
-	const static int BlockSize = 2;
+//	const static int BlockSize = 1000;
 	struct BNode;
 	struct ANode {
 		T * pvalue;
+		int *ident;
 		ANode *prev, *next;
 		BNode *bnode;
 	};
@@ -23,37 +24,35 @@ private:
 		int length;
 		BNode *prev, *next;
 	};
+	int *ident;
 	ANode *start, *finish;
 	int total_size;
 	void copy_alist( BNode *dst, BNode *src ) {
-		if( src->head == 0 ) {
-			dst->head = dst->tail = 0;
-			dst->length = 0;
-		} else {
-			ANode *ncur = new ANode();
-			ANode *ocur = src->head;
-			ncur->prev = 0;
-			ncur->next = 0;
-			ncur->bnode = dst;
-			ncur->pvalue = new T(*ocur->pvalue);
-			dst->head = ncur;
-			while( ocur->next ) {
-				ncur->next = new ANode();
-				ncur->next->prev = ncur;
-				ncur->next->next = 0;
-				ncur->next->bnode = dst;
-				ncur->pvalue = new T(*ocur->pvalue);
-				ncur = ncur->next;
-				ocur = ocur->next;
-			}
-			dst->tail = ncur;
-			dst->length = src->length;
+		ANode *ncur = new ANode();
+		ANode *ocur = src->head;
+		ncur->ident = this->ident;
+		ncur->prev = 0;
+		ncur->next = 0;
+		ncur->bnode = dst;
+		ncur->pvalue = ocur->pvalue ? new T(*ocur->pvalue) : 0;
+		dst->head = ncur;
+		while( ocur->next ) {
+			ncur->next = new ANode();
+			ncur->next->ident = this->ident;
+			ncur->next->prev = ncur;
+			ncur->next->next = 0;
+			ncur->next->bnode = dst;
+			ncur->next->pvalue = ocur->next->pvalue ? new T(*ocur->next->pvalue) : 0;
+			ncur = ncur->next;
+			ocur = ocur->next;
 		}
+		dst->tail = ncur;
+		dst->length = src->length;
 	}
 	void destroy_alist( BNode *bnode ) {
 		for( ANode *cur = bnode->head; cur; ) {
 			ANode *nxt = cur->next;
-			delete cur->pvalue;
+			if( cur->pvalue ) delete cur->pvalue;
 			delete cur;
 			cur = nxt;
 		}
@@ -63,10 +62,11 @@ private:
 			anode->bnode = lhs;
 		lhs->length += rhs->length;
 		lhs->next = rhs->next;
-		if( rhs->next ) rhs->next = lhs;
+		if( rhs->next ) rhs->next->prev = lhs;
 		lhs->tail->next = rhs->head;
 		rhs->head->prev= lhs->tail;
 		lhs->tail = rhs->tail;
+		delete rhs;
 	}
 	void split( BNode *bnode ) {
 		int step = (bnode->length) >> 1;
@@ -89,6 +89,7 @@ private:
 			anode->bnode = nb;
 	}
 	void adjust( BNode *bnode ) {
+		int BlockSize = max( sqrtf(total_size) * 0.8, 150 );
 		if( bnode->length < (BlockSize>>1) ) {
 			bool ileft = bnode == start->bnode;
 			bool iright = bnode == finish->bnode;
@@ -117,6 +118,7 @@ private:
 	}
 	ANode *insert( ANode *anode, const T & value ) {
 		ANode *nnode = new ANode();
+		nnode->ident = this->ident;
 		nnode->bnode = anode->bnode;
 		total_size++;
 		nnode->pvalue = new T(value);
@@ -139,27 +141,24 @@ private:
 	ANode *erase( ANode *anode ) {
 		ANode *rt = (anode->next ? anode->next : anode->bnode->next->head );
 		total_size--;
-		if( anode == finish ) finish = rt;
 		if( anode->prev == 0 && anode->next == 0 ) {
 			throw impossible();
 		} else if( anode->prev == 0 ) {
 			ANode *anext = anode->next;
 			anext->prev = 0;
 			anode->bnode->head = anext;
-			anode->bnode->length--;
+			if( anode == start ) start = anext;
 		} else if( anode->next == 0 ) {
 			ANode *aprev = anode->prev;
 			aprev->next = 0;
 			anode->bnode->tail = aprev;
-			anode->bnode->length--;
 		} else {
 			ANode *aprev = anode->prev;
 			ANode *anext = anode->next;
 			aprev->next = anext;
 			anext->prev = aprev;
-			anode->bnode->length--;
 		}
-		anode->bnode->length++;
+		anode->bnode->length--;
 		adjust(anode->bnode);
 		delete anode->pvalue;
 		delete anode;
@@ -167,7 +166,7 @@ private:
 	}
 	ANode *find_by_rank( size_t ppos ) const {
 		BNode *cur = start->bnode;
-		int pos = (int)ppos;
+		size_t pos =  ppos;
 		while( pos >= cur->length && cur->next ) {
 			pos -= cur->length;
 			cur = cur->next;
@@ -184,6 +183,36 @@ private:
 			return 0;
 		}
 	}
+	static int rank( const ANode *nd ) {
+		int cnt = 0;
+		while( nd->prev ) {
+			cnt++;
+			nd = nd->prev;
+		}
+		BNode *bcur = nd->bnode;
+		while( bcur->prev ) {
+			cnt += bcur->prev->length;
+			bcur = bcur->prev;
+		}
+		return cnt;
+	}
+public:	/* For Debug */
+	void print() {
+		for( BNode *bnode = start->bnode; bnode; bnode = bnode->next ) {
+			fprintf( stderr, "[%d P%d N%d] ", 
+					bnode->length,
+					bnode->prev != 0,
+					bnode->next != 0
+				   );
+			for( ANode *anode = bnode->head; anode; anode = anode->next ) {
+				if( anode == finish ) 
+					fprintf( stderr, "E" );
+				else
+					fprintf( stderr, "%d ", *anode->pvalue );
+			}
+			fprintf( stderr, "\n" );
+		}
+	}
 public:
 	class const_iterator;
 	class iterator {
@@ -193,6 +222,7 @@ public:
 		 *   just add whatever you want.
 		 */
 		ANode *anode;
+		friend class deque;
 	public:
 		iterator() {
 			anode = 0;
@@ -243,7 +273,7 @@ public:
 				acur = acur->prev;
 			}
 			if( n == 0 ) return iterator(acur);
-			BNode *bcur = acur->bnode->prev;;
+			BNode *bcur = acur->bnode->prev;
 			if( bcur == 0 ) throw runtime_error();
 			while( n > bcur->length && bcur->prev ) {
 				n -= bcur->length;
@@ -263,25 +293,12 @@ public:
 		}
 		// return th distance between two iterator,
 		// if these two iterators points to different vectors, throw invaild_iterator.
-		pair<BNode*,int> rank( ANode *nd ) {
-			int cnt = 0;
-			while( nd->prev ) {
-				cnt++;
-				nd = nd->prev;
-			}
-			BNode *bcur = nd->bnode;
-			while( bcur->prev ) {
-				cnt += bcur->prev->length;
-				bcur = bcur->prev;
-			}
-			return pair<BNode*,int>( bcur, cnt );
-		}
 		int operator-(const iterator &rhs) const {
 			//TODO
-			pair<BNode*,int> arank = rank(anode);
-			pair<BNode*,int> brank = rank(rhs->anode);
-			if( arank.first != brank.first ) throw invalid_iterator();
-			return arank.second - brank.second;
+			if( this->anode->ident != rhs.anode->ident ) throw invalid_iterator();
+			int arank = rank(anode);
+			int brank = rank(rhs.anode);
+			return arank - brank;
 		}
 		iterator operator+=(const int &n) {
 			//TODO
@@ -310,7 +327,7 @@ public:
 		 */
 		iterator operator--(int) {
 			iterator it = *this;
-			*this = (*this + 1);
+			*this = (*this - 1);
 			return it;
 		}
 		/**
@@ -323,12 +340,16 @@ public:
 		 * TODO *it
 		 */
 		T& operator*() const {
+			if( anode == 0 || anode->pvalue == 0 )
+				throw invalid_iterator();
 			return *(anode->pvalue);
 		}
 		/**
 		 * TODO it->field
 		 */
 		T* operator->() const noexcept {
+			if( anode == 0 || anode->pvalue == 0 )
+				throw invalid_iterator();
 			return anode->pvalue;
 		}
 		/**
@@ -356,6 +377,7 @@ public:
 	private:
 		// data members.
 		ANode *anode;
+		friend class deque;
 	public:
 		const_iterator() {
 			// TODO
@@ -363,11 +385,11 @@ public:
 		}
 		const_iterator(const const_iterator &other) {
 			// TODO
-			anode = other->anode;
+			anode = other.anode;
 		}
 		const_iterator(const iterator &other) {
 			// TODO
-			anode = other->anode;
+			anode = other.anode;
 		}
 		// And other methods in iterator.
 		// And other methods in iterator.
@@ -386,8 +408,8 @@ public:
 				n--;
 				acur = acur->next;
 			}
-			if( n == 0 ) return iterator(acur);
-			BNode *bcur = acur->bnode;
+			if( n == 0 ) return const_iterator(acur);
+			BNode *bcur = acur->bnode->next;
 			while( n > bcur->length && bcur->next ) {
 				n -= bcur->length;
 				bcur = bcur->next;
@@ -399,7 +421,7 @@ public:
 					n--;
 					acur = acur->next;
 				}
-				return iterator(acur);
+				return const_iterator(acur);
 			} else {
 				throw runtime_error();
 			}
@@ -414,7 +436,7 @@ public:
 				acur = acur->prev;
 			}
 			if( n == 0 ) return iterator(acur);
-			BNode *bcur = bcur->bnode;
+			BNode *bcur = acur->bnode->prev;
 			while( n > bcur->length && bcur->prev ) {
 				n -= bcur->length;
 				bcur = bcur->prev;
@@ -433,25 +455,12 @@ public:
 		}
 		// return th distance between two iterator,
 		// if these two iterators points to different vectors, throw invaild_iterator.
-		pair<BNode*,int> rank( ANode *nd ) {
-			int cnt = 0;
-			while( nd->prev ) {
-				cnt++;
-				nd = nd->prev;
-			}
-			BNode *bcur = nd->bnode;
-			while( bcur->prev ) {
-				cnt += bcur->prev->length;
-				bcur = bcur->prev;
-			}
-			return pair<BNode*,int>( bcur, cnt );
-		}
 		int operator-(const const_iterator &rhs) const {
 			//TODO
-			pair<BNode*,int> arank = rank(anode);
-			pair<BNode*,int> brank = rank(rhs->anode);
-			if( arank.first != brank.first ) throw invalid_iterator();
-			return arank.second - brank.second;
+			if( this->anode->ident != rhs.anode->ident ) throw invalid_iterator();
+			int arank = rank(anode);
+			int brank = rank(rhs.anode);
+			return arank - brank;
 		}
 		const_iterator operator+=(const int &n) {
 			//TODO
@@ -480,7 +489,7 @@ public:
 		 */
 		const_iterator operator--(int) {
 			const_iterator it = *this;
-			*this = (*this + 1);
+			*this = (*this - 1);
 			return it;
 		}
 		/**
@@ -493,13 +502,17 @@ public:
 		 * TODO *it
 		 */
 		const T& operator*() const {
-			return *(anode->value);
+			if( anode == 0 || anode->pvalue == 0 )
+				throw invalid_iterator();
+			return *(anode->pvalue);
 		}
 		/**
 		 * TODO it->field
 		 */
 		const T* operator->() const noexcept {
-			return anode->value;
+			if( anode == 0 || anode->pvalue == 0 )
+				throw invalid_iterator();
+			return anode->pvalue;
 		}
 		/**
 		 * a operator to check whether two iterators are same (pointing to the same memory).
@@ -526,6 +539,8 @@ public:
 	deque() {
 		BNode *bnode = new BNode();
 		ANode *anode = new ANode();
+		ident = new int(0);
+		anode->ident = ident;
 		anode->prev = anode->next = 0;
 		anode->bnode = bnode;
 		anode->pvalue = 0;
@@ -536,8 +551,9 @@ public:
 		total_size = 0;
 	}
 	deque(const deque &other) {
-		BNode *cur = start->bnode;
+		BNode *cur = other.start->bnode;
 		BNode *ncur;
+		ident = new int(0);
 		ncur = new BNode();
 		ncur->prev = ncur->next = 0;
 		copy_alist( ncur, cur );
@@ -557,6 +573,7 @@ public:
 	 * TODO Deconstructor
 	 */
 	~deque() {
+		delete ident;
 		for( BNode *cur = start->bnode; cur;  ) {
 			destroy_alist( cur );
 			BNode *nxt = cur->next;
@@ -588,10 +605,12 @@ public:
 		else return *res->pvalue;
 	}
 	T & operator[](const size_t &pos) {
-		return *find_by_rank(pos)->pvalue;
+		return at(pos);
+//		return *find_by_rank(pos)->pvalue;
 	}
 	const T & operator[](const size_t &pos) const {
-		return *find_by_rank(pos)->pvalue;
+		return at(pos);
+//		return *find_by_rank(pos)->pvalue;
 	}
 	/**
 	 * access the first element
@@ -660,8 +679,8 @@ public:
 	 *     throw if the iterator is invalid or it point to a wrong place.
 	 */
 	iterator insert(iterator pos, const T &value) {
-		if( pos->anode == 0 || pos->anode->bnode == 0 ) throw invalid_iterator();
-		return iterator( insert(pos->anode,value) );
+		if( pos.anode == 0 || pos.anode->ident != this->ident || pos.anode->bnode == 0 ) throw invalid_iterator();
+		return iterator( insert(pos.anode,value) );
 	}
 	/**
 	 * removes specified element at pos.
@@ -670,9 +689,9 @@ public:
 	 * throw if the container is empty, the iterator is invalid or it points to a wrong place.
 	 */
 	iterator erase(iterator pos) {
-		ANode *anode = pos->anode;
-		if( anode == 0 || anode->bnode == 0 || anode->pvalue == 0 ) throw invalid_iterator();
-		return iterator( erase(pos->anode) );
+		ANode *anode = pos.anode;
+		if( anode == 0 || anode->ident != this->ident || anode->bnode == 0 || anode->pvalue == 0 ) throw invalid_iterator();
+		return iterator( erase(pos.anode) );
 	}
 	/**
 	 * adds an element to the end
